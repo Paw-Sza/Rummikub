@@ -12,19 +12,53 @@ struct block{
         int color;
         int unused;
 } ;
-void matrix_fill(int mat[][MATRIX]){
+void matrix_fill(struct block mat[][MATRIX]){
     for(int i=0; i<MATRIX;i++){
         for(int j=0; j<MATRIX;j++){
-            mat[i][j]=0;
+            mat[i][j].value=0;
         }
     }
 }
 void matrix_check(int matrix[][MATRIX]){
     for(int i=0; i<MATRIX;i++){
-        for(int j=0; j<MATRIX;j++){
-            matrix[i][j]=0;
+            printf(" Row %d: %d \n", i, row_check(matrix, i, 0, 0));
         }
     }
+
+
+int row_check(struct block matrix[][MATRIX], int r, int c, int g){
+if(c>=MATRIX-1){
+    return 999;
+}
+if(matrix[r][c].value==0){
+row_check(matrix, r, c+1, g);
+} else if(matrix[r][c].value<matrix[r][c+1].value && matrix[r][c].color==matrix[r][c+1].color){
+        row_check(matrix, r, c+1, g+1);
+        g=g+1;
+}else if(matrix[r][c].value>matrix[r][c+1].value && matrix[r][c].color==matrix[r][c+1].color){
+        g=g+1;
+        row_check(matrix, r, c+1, g+1);
+} else if(matrix[r][c].value==matrix[r][c+1].value &&
+           matrix[r][c].color!=matrix[r][c+1].color &&
+            matrix[r][c].value==matrix[r][c+2].value &&
+             matrix[r][c].color!=matrix[r][c+2].color&&
+            matrix[r][c].value==matrix[r][c+3].value &&
+             matrix[r][c].color!=matrix[r][c+3].color){
+
+             row_check(matrix, r, c+4, g+3);
+
+} else if(matrix[r][c].value==matrix[r][c+1].value &&
+           matrix[r][c].color!=matrix[r][c+1].color &&
+            matrix[r][c].value==matrix[r][c+2].value &&
+             matrix[r][c].color!=matrix[r][c+2].color){
+
+             row_check(matrix, r, c+3, g+2);
+
+} else if (g>=2){
+             row_check(matrix, r, c+1, 0);
+} else if (g<2){
+             return c+1;
+             }
 }
 void list_fill(struct block array[10], int c){
 for(int i=0;i<10;i++){
@@ -90,6 +124,7 @@ struct block randomize_block(struct block array1[10],struct block array2[10],str
 }
 int main()
 {
+    srand(time(0));
 int isgood=0;
 struct block b;
 struct block black[10];
@@ -100,7 +135,7 @@ struct block orange[10];
 list_fill(orange, 3);
 struct block blue[10];
 list_fill(blue, 4);
-for(int i=0; i<80;i++){
+/*for(int i=0; i<80;i++){
     b=randomize_block(black,red,orange,blue);
     printf("  %d,  Value: %d, Unused: %d, ",i,b.value, b.unused);
     if(b.unused==0)isgood++;
@@ -117,14 +152,33 @@ default: printf("blad\n");
 break;
     }
 
-}
+}*/
 
-int matrix[MATRIX][MATRIX];
+struct block matrix[MATRIX][MATRIX];
 matrix_fill(matrix);
 
+matrix[0][4].value=1;
+matrix[0][5].value=2;
+matrix[0][6].value=3;
+matrix[0][4].color=2;
+matrix[0][5].color=1;
+matrix[0][6].color=2;
+matrix_check(matrix);
     for(int i=0; i<MATRIX;i++){
         for(int j=0; j<MATRIX;j++){
-            printf("[%d] ",matrix[i][j]);
+            printf("[%d ",matrix[i][j].value);
+                switch(matrix[i][j].color){
+                case 1: printf(" B]");
+                break;
+                case 2: printf(" R]");
+                break;
+                case 3: printf(" O]");
+                break;
+                case 4: printf(" BL]");
+                break;
+                default: printf(" X]");
+                break;
+                }
         }
         printf("\n");
     }
