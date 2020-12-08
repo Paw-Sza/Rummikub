@@ -136,6 +136,7 @@ void *ThreadBehavior(void *t_data)
             print_matrix(matrix);
         if (buf[0] == 's')
         {
+            write(th_data->connection_socket_descriptor, buf, 1);
             matrix[1][4].value = 8;
             matrix[1][5].value = 9;
             matrix[1][6].value = 10;

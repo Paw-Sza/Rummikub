@@ -64,7 +64,7 @@ void print_matrix(struct block matrix[][MATRIX])
         printf("\n");
     }
 }
-void buffer_to_matrix(struct block matrix[][MATRIX], char buffer[])
+void buffer_to_matrix(struct block matrix[][MATRIX], char *buffer)
 {
     //	printf("%s", buffer);
     int isval = 0;
@@ -88,52 +88,6 @@ void buffer_to_matrix(struct block matrix[][MATRIX], char buffer[])
         }
         else if (buffer[i] == '|')
         {
-            void buffer_to_matrix(struct block matrix[][MATRIX], char buffer[])
-            {
-                //	printf("%s", buffer);
-                int isval = 0;
-                int iscol = 0;
-                int row = 0;
-                int col = -1;
-                int temp;
-                char temp2[2] = "";
-                for (int i = 0; i < strlen(buffer); i++)
-                {
-                    if (buffer[i] == '*')
-                    {
-                        col = -1;
-                        row = row + 1;
-                    }
-                    else if (buffer[i] == ';')
-                    {
-                        col = col + 1;
-                        isval = 1;
-                        iscol = 0;
-                    }
-                    else if (buffer[i] == '|')
-                    {
-                        isval = 0;
-                        iscol = 1;
-                    }
-                    else if (isval == 1)
-                    {
-                        temp2[0] = buffer[i];
-                        matrix[row][col].value = atoi(temp2);
-                        if (buffer[i + 1] == '0')
-                        {
-                            matrix[row][col].value = 10;
-                            i++;
-                        }
-                    }
-                    else if (iscol == 1)
-                    {
-                        temp2[0] = buffer[i];
-                        matrix[row][col].color = atoi(temp2);
-                    }
-                    //printf("Row: %d Col: %d Char: %c IsVal: %d IsCol: %d\n",row, col,  buffer[i], isval,iscol);
-                }
-            }
-
             isval = 0;
             iscol = 1;
         }
@@ -155,7 +109,6 @@ void buffer_to_matrix(struct block matrix[][MATRIX], char buffer[])
         //printf("Row: %d Col: %d Char: %c IsVal: %d IsCol: %d\n",row, col,  buffer[i], isval,iscol);
     }
 }
-
 void matrix_fill(struct block mat[][MATRIX])
 {
     for (int i = 0; i < MATRIX; i++)
@@ -217,7 +170,6 @@ int row_check(struct block matrix[][MATRIX], int r, int c, int g)
 
 void matrix_check(struct block matrix2[][MATRIX], int sock)
 {
-    printf("X \n");
     print_matrix(matrix2);
     int out;
     char buf[20];
@@ -393,7 +345,8 @@ void *ThreadBehavior(void *t_data)
         bzero(buf, 2000);
         bzero(buf2, 100);
 
-        read(th_data->connection_socket_descriptor, buf2, 100);
+        recv(th_data->connection_socket_descriptor, buf2, 1, 0);
+        pthread_mutex_lock(&lock);
         for (int i = 0; i < 4; i++)
         {
             if (connections[i] == th_data->connection_socket_descriptor)
@@ -403,25 +356,22 @@ void *ThreadBehavior(void *t_data)
         }
         if (buf2[0] == 'x')
         {
-            print_matrix(matrix);
             bzero(buf, 2000);
             matrix_to_buffer(matrix, buf);
             write(th_data->connection_socket_descriptor, buf, 2000);
             write(th_data->connection_socket_descriptor, "\n", 1);
-            print_matrix(matrix);
             //	for(int i=0;i<4;i++) {
             //               write(connections[i], buf, 2000);
             //			}
         }
-        if (buf2[0] == 'c')
+        if (buf2[0] == 'c' || buf2[0] == 's')
         {
-            printf("x\n");
             recv_matrix = 1;
             bzero(matrixbuf, 2000);
             while (recv_matrix == 1)
             {
                 recv(th_data->connection_socket_descriptor, buf, 1, 0);
-
+                printf("%c", buf);
                 if (buf[0] == '+')
                     recv_matrix = 1;
                 if (recv_matrix == 1)
@@ -431,6 +381,7 @@ void *ThreadBehavior(void *t_data)
                         buffer_to_matrix(matrix_temp, matrixbuf);
                         recv_matrix = 0;
                         print_matrix(matrix_temp);
+                                if (buf2[0] == 's') memcpy(matrix, matrix_temp, sizeof(matrix_temp));
                     }
                     else
                     {
@@ -440,31 +391,7 @@ void *ThreadBehavior(void *t_data)
             }
             matrix_check(matrix_temp, th_data->connection_socket_descriptor);
         }
-        if (buf2[0] == 's')
-        {
-            recv_matrix = 1;
-            bzero(matrixbuf, 2000);
-            while (recv_matrix == 1)
-            {
-                recv(th_data->connection_socket_descriptor, buf, 1, 0);
-
-                if (buf[0] == '+')
-                    recv_matrix = 1;
-                if (recv_matrix == 1)
-                {
-                    if (buf[0] == '=')
-                    {
-                        buffer_to_matrix(matrix, matrixbuf);
-                        recv_matrix = 0;
-                        print_matrix(matrix);
-                    }
-                    else
-                    {
-                        strncat(matrixbuf, &buf[0], 1);
-                    }
-                }
-            }
-        }
+        pthread_mutex_unlock(&lock);        
     }
     free(th_data);
     pthread_exit(NULL);
@@ -503,7 +430,6 @@ int main(int argc, char *argv[])
     list_fill(red, 2);
     list_fill(orange, 3);
     matrix_fill(matrix);
-
     matrix[0][4].value = 8;
     matrix[0][5].value = 9;
     matrix[0][6].value = 10;
@@ -519,7 +445,6 @@ int main(int argc, char *argv[])
     matrix[0][10].color = 4;
     setlinebuf(stdout);
     fflush(stdout);
-
     int server_socket_descriptor;
     int connection_socket_descriptor;
     int bind_result;
