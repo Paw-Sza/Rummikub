@@ -18,6 +18,7 @@ struct block
     int unused;
 };
 struct block matrix[MATRIX][MATRIX];
+struct block hand[80];
 void print_matrix(struct block matrix[][MATRIX])
 {
     for (int i = 0; i < MATRIX; i++)
@@ -46,6 +47,97 @@ void print_matrix(struct block matrix[][MATRIX])
         }
         printf("\n");
     }
+}
+void print_hand(struct block array[80])
+{
+    for (int i = 0; i < 80; i++)
+    {
+        if (array[i].value != 0)
+        {
+            printf("|%d[%d", i, array[i].value, array[i].color);
+            switch (array[i].color)
+            {
+            case 1:
+                printf("|B]");
+                break;
+            case 2:
+                printf("|R]");
+                break;
+            case 3:
+                printf("|O]");
+                break;
+            case 4:
+                printf("|BL]");
+                break;
+            default:
+                printf("|X]");
+                break;
+            }
+            if (i % 10 == 9)
+                printf("\n");
+        }
+    }
+}
+void put_in_hand(struct block array[80], struct block b)
+{
+    for (int i = 0; i < 80; i++)
+    {
+        if (array[i].value == 0)
+        {
+            array[i] = b;
+            break;
+        };
+    }
+}
+struct block buffer_to_block(char *buf)
+{
+
+    struct block b;
+    char temp[1] = "";
+    temp[0] = buf[0];
+    b.value = atoi(temp);
+    if (buf[1] == '0')
+    {
+        b.value = 10;
+    }
+    else if (buf[1] == '|')
+    {
+        temp[0] = buf[2];
+        b.color = atoi(temp);
+    }
+    if (buf[2] == '|')
+    {
+        temp[0] = buf[3];
+        b.color = atoi(temp);
+    }
+    if (buf[3] == '_' || buf[4] == '_')
+    {
+
+        return b;
+    }
+    else
+    {
+        b.value = 0;
+        b.color = 5;
+        return b;
+    }
+}
+void switch_in_hand(struct block array[80], int a, int b)
+{
+    struct block temp;
+    temp = array[a];
+    array[a] = array[b];
+    array[b] = temp;
+}
+struct block get_from_hand(struct block array[80], int a)
+{
+    struct block b;
+    b = array[a];
+    for (int i = a; i < 79; i++)
+    {
+        array[i] = array[i + 1];
+    }
+    return b;
 }
 void buffer_to_matrix(struct block matrix[][MATRIX], char *buffer)
 {
@@ -108,6 +200,10 @@ void matrix_to_buffer(struct block matrix[][MATRIX], char *buf)
     sprintf(buffer + strlen(buffer), "=");
     strcpy(buf, buffer);
 }
+void place_on_matrix(struct block matrix[][MATRIX], struct block b, int row, int col)
+{
+    matrix[row][col] = b;
+}
 //struktura zawierająca dane, które zostanły przekazane do wątku
 struct thread_data_t
 {
@@ -120,7 +216,12 @@ void *ThreadBehavior(void *t_data)
     struct thread_data_t *th_data = (struct thread_data_t *)t_data;
     char buf[2000];
     char conn[10] = "Connected\n";
+    struct block b;
     int first = 1;
+    int ID1;
+    int ID2;
+    int row;
+    int col;
     while (th_data->connection_socket_descriptor)
     {
         if (first == 0)
@@ -134,15 +235,49 @@ void *ThreadBehavior(void *t_data)
             ;
         if (buf[0] == 'p')
             print_matrix(matrix);
+        if (buf[0] == 'o')
+            print_hand(hand);
+        if (buf[0] == 'i')
+        {
+            printf("Podaj ID do polozenia: \n");
+            n = 0;
+            bzero(buf, 2000);
+            while ((buf[n++] = getchar()) != '\n')
+                ;
+            ID1 = atoi(buf);
+            printf("Podaj rząd i kolumnę: \n");
+            n = 0;
+            bzero(buf, 2000);
+            while ((buf[n++] = getchar()) != '\n')
+                ;
+            row = atoi(buf);
+            n = 0;
+            bzero(buf, 2000);
+            while ((buf[n++] = getchar()) != '\n')
+                ;
+            col = atoi(buf);
+            b = get_from_hand(hand, ID1);
+            //            printf("%d%d\n", b.value, b.color);
+            place_on_matrix(matrix, b, row, col);
+        }
+        if (buf[0] == 'm')
+        {
+            printf("Podaj ID do zamiany: \n");
+            n = 0;
+            bzero(buf, 2000);
+            while ((buf[n++] = getchar()) != '\n')
+                ;
+            ID1 = atoi(buf);
+            n = 0;
+            bzero(buf, 2000);
+            while ((buf[n++] = getchar()) != '\n')
+                ;
+            ID2 = atoi(buf);
+            switch_in_hand(hand, ID1, ID2);
+        }
         if (buf[0] == 's')
         {
             write(th_data->connection_socket_descriptor, buf, 1);
-            matrix[1][4].value = 8;
-            matrix[1][5].value = 9;
-            matrix[1][6].value = 10;
-            matrix[1][4].color = 2;
-            matrix[1][5].color = 2;
-            matrix[1][6].color = 2;
             matrix_to_buffer(matrix, buf);
         }
         if (buf[0] == 'c')
@@ -161,9 +296,11 @@ void handleConnection(int connection_socket_descriptor)
     //wynik funkcji tworzącej wątek
     int create_result = 0;
     char matrixbuf[2000];
+    char blockbuf[6];
     char buf[2000];
     int recv_matrix = 0;
-
+    int recv_block = 0;
+    struct block b;
     //uchwyt na wątek
     pthread_t thread1;
 
@@ -199,7 +336,28 @@ void handleConnection(int connection_socket_descriptor)
             }
             else
             {
-                printf("%s", buf);
+                if (buf[0] == '-')
+                    recv_block = 1;
+                else if (recv_block == 1)
+                {
+                    if (buf[0] == '_')
+                    {
+                        strncat(blockbuf, &buf[0], 1);
+                        b = buffer_to_block(blockbuf);
+                        put_in_hand(hand, b);
+                        recv_block = 0;
+                        bzero(buf, 2000);
+                        bzero(blockbuf, 6);
+                    }
+                    else
+                    {
+                        strncat(blockbuf, &buf[0], 1);
+                    }
+                }
+                else
+                {
+                    printf("%s", buf);
+                }
             }
         }
     }

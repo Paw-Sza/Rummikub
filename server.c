@@ -15,6 +15,7 @@
 #define MATRIX 15
 #define QUEUE_SIZE 5
 int connections[4];
+    int con = 0;
 int turn = 0;
 int ABCD = 10;
 int bl = 10;
@@ -109,66 +110,57 @@ void buffer_to_matrix(struct block matrix[][MATRIX], char *buffer)
         //printf("Row: %d Col: %d Char: %c IsVal: %d IsCol: %d\n",row, col,  buffer[i], isval,iscol);
     }
 }
-void matrix_fill(struct block mat[][MATRIX])
-{
-    for (int i = 0; i < MATRIX; i++)
-    {
-        for (int j = 0; j < MATRIX; j++)
-        {
-            mat[i][j].value = 0;
-            mat[i][j].color = 0;
-        }
-    }
-}
 int row_check(struct block matrix[][MATRIX], int r, int c, int g)
 {
-    if (c >= MATRIX - 1)
+    if(c>=MATRIX-1)
     {
         return 999;
     }
-    if (matrix[r][c].value == 0)
+    if(matrix[r][c].value==0)
     {
-        row_check(matrix, r, c + 1, g);
+        row_check(matrix, r, c+1, g);
     }
-    else if (matrix[r][c].value < matrix[r][c + 1].value && matrix[r][c].color == matrix[r][c + 1].color && abs(matrix[r][c].value - matrix[r][c + 1].value) == 1)
+    else if(matrix[r][c].value<matrix[r][c+1].value && matrix[r][c].color==matrix[r][c+1].color && abs(matrix[r][c].value-matrix[r][c+1].value)==1)
     {
-        row_check(matrix, r, c + 1, g + 1);
-        g = g + 1;
+        row_check(matrix, r, c+1, g+1);
+        g=g+1;
     }
-    else if (matrix[r][c].value > matrix[r][c + 1].value && matrix[r][c].color == matrix[r][c + 1].color && abs(matrix[r][c].value - matrix[r][c + 1].value) == 1)
+    else if(matrix[r][c].value>matrix[r][c+1].value && matrix[r][c].color==matrix[r][c+1].color && abs(matrix[r][c].value-matrix[r][c+1].value)==1)
     {
-        g = g + 1;
-        row_check(matrix, r, c + 1, g + 1);
+        g=g+1;
+        row_check(matrix, r, c+1, g+1);
     }
-    else if (matrix[r][c].value == matrix[r][c + 1].value &&
-             matrix[r][c].color != matrix[r][c + 1].color &&
-             matrix[r][c].value == matrix[r][c + 2].value &&
-             matrix[r][c].color != matrix[r][c + 2].color &&
-             matrix[r][c].value == matrix[r][c + 3].value &&
-             matrix[r][c].color != matrix[r][c + 3].color)
+    else if(matrix[r][c].value==matrix[r][c+1].value &&
+            matrix[r][c].color!=matrix[r][c+1].color &&
+            matrix[r][c].value==matrix[r][c+2].value &&
+            matrix[r][c].color!=matrix[r][c+2].color&&
+            matrix[r][c].value==matrix[r][c+3].value &&
+            matrix[r][c].color!=matrix[r][c+3].color &&
+            matrix[r][c+4].value==0)
     {
 
-        row_check(matrix, r, c + 4, g + 3);
-    }
-    else if (matrix[r][c].value == matrix[r][c + 1].value &&
-             matrix[r][c].color != matrix[r][c + 1].color &&
-             matrix[r][c].value == matrix[r][c + 2].value &&
-             matrix[r][c].color != matrix[r][c + 2].color)
-    {
+        row_check(matrix, r, c+4, g+3);
 
-        row_check(matrix, r, c + 3, g + 2);
     }
-    else if (g >= 2)
+    else if(matrix[r][c].value==matrix[r][c+1].value &&
+            matrix[r][c].color!=matrix[r][c+1].color &&
+            matrix[r][c].value==matrix[r][c+2].value &&
+            matrix[r][c].color!=matrix[r][c+2].color&&
+            matrix[r][c+3].value==0)
     {
-        row_check(matrix, r, c + 1, 0);
+        row_check(matrix, r, c+3, g+2);
+
     }
-    else if (g < 2)
+    else if (g>=2 && matrix[r][c+1].value==0)
     {
-        return c + 1;
+        row_check(matrix, r, c+1, 0);
+    }
+    else
+    {
+        return c+1;
     }
 }
-
-void matrix_check(struct block matrix2[][MATRIX], int sock)
+int matrix_check(struct block matrix2[][MATRIX], int sock)
 {
     print_matrix(matrix2);
     int out;
@@ -183,14 +175,15 @@ void matrix_check(struct block matrix2[][MATRIX], int sock)
             good = 0;
             sprintf(buf, " Row %d: %d \n", i, out);
             write(sock, buf, 20);
+            return out;
         }
     }
     if (good == 1)
     {
         write(sock, goodmsg, 20);
+        return 999;
     }
 }
-
 void list_fill(struct block array[10], int c)
 {
     for (int i = 0; i < 10; i++)
@@ -287,6 +280,16 @@ void matrix_to_buffer(struct block matrix[][MATRIX], char *buf)
     sprintf(buffer + strlen(buffer), "=");
     strcpy(buf, buffer);
 }
+void send_block(int sock)
+{
+    printf("Wyslano klocek ");
+    struct block b = randomize_block(black, red, orange, blue);
+    printf("%d%d\n", b.value, b.color);
+    char buf[6] = "";
+    sprintf(buf, "-%d|%d_", b.value, b.color);
+
+    write(sock, buf, 6);
+}
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 //struktura zawierająca dane, które zostaną przekazane do wątku
 
@@ -335,12 +338,8 @@ void *ThreadBehavior(void *t_data)
 	pthread_mutex_unlock(&lock);
     }*/
     while (1)
-    {
-        /*	while ((getchar()) != '\n'){
-	if(getchar()=='s'){
+    {   
 
-	}
-	}*/
         bzero(matrixbuf, 2000);
         bzero(buf, 2000);
         bzero(buf2, 100);
@@ -364,6 +363,15 @@ void *ThreadBehavior(void *t_data)
             //               write(connections[i], buf, 2000);
             //			}
         }
+        if (buf2[0] == 'b')
+        {
+            bzero(buf, 2000);
+            send_block(th_data->connection_socket_descriptor);
+            write(th_data->connection_socket_descriptor, "\n", 1);
+            //	for(int i=0;i<4;i++) {
+            //               write(connections[i], buf, 2000);
+            //			}
+        }
         if (buf2[0] == 'c' || buf2[0] == 's')
         {
             recv_matrix = 1;
@@ -381,7 +389,6 @@ void *ThreadBehavior(void *t_data)
                         buffer_to_matrix(matrix_temp, matrixbuf);
                         recv_matrix = 0;
                         print_matrix(matrix_temp);
-                                if (buf2[0] == 's') memcpy(matrix, matrix_temp, sizeof(matrix_temp));
                     }
                     else
                     {
@@ -389,9 +396,11 @@ void *ThreadBehavior(void *t_data)
                     }
                 }
             }
-            matrix_check(matrix_temp, th_data->connection_socket_descriptor);
+            int check = matrix_check(matrix_temp, th_data->connection_socket_descriptor);
+            if (buf2[0] == 's' && check==999)
+                memcpy(matrix, matrix_temp, sizeof(matrix_temp));
         }
-        pthread_mutex_unlock(&lock);        
+        pthread_mutex_unlock(&lock);
     }
     free(th_data);
     pthread_exit(NULL);
@@ -401,7 +410,7 @@ void *ThreadBehavior(void *t_data)
 void handleConnection(int connection_socket_descriptor)
 {
     printf("Nowe polaczenie \n");
-
+    for(int j=0;j<14;j++)send_block(connection_socket_descriptor);
     //wynik funkcji tworzącej wątek
     int create_result = 0;
     char buf[100];
@@ -409,7 +418,6 @@ void handleConnection(int connection_socket_descriptor)
     pthread_t thread1;
 
     //dane, które zostaną przekazane do wątku
-    //TODO wypełnienie pól struktury
 
     struct thread_data_t *t_data = (struct thread_data_t *)malloc(sizeof(struct thread_data_t));
     t_data->connection_socket_descriptor = connection_socket_descriptor;
@@ -429,20 +437,6 @@ int main(int argc, char *argv[])
     list_fill(black, 1);
     list_fill(red, 2);
     list_fill(orange, 3);
-    matrix_fill(matrix);
-    matrix[0][4].value = 8;
-    matrix[0][5].value = 9;
-    matrix[0][6].value = 10;
-    matrix[0][4].color = 2;
-    matrix[0][5].color = 2;
-    matrix[0][6].color = 2;
-
-    matrix[0][8].value = 10;
-    matrix[0][9].value = 10;
-    matrix[0][10].value = 10;
-    matrix[0][8].color = 2;
-    matrix[0][9].color = 3;
-    matrix[0][10].color = 4;
     setlinebuf(stdout);
     fflush(stdout);
     int server_socket_descriptor;
@@ -480,7 +474,6 @@ int main(int argc, char *argv[])
         fprintf(stderr, "%s: Błąd przy próbie ustawienia wielkości kolejki.\n", argv[0]);
         exit(1);
     }
-    int con = 0;
     while (1)
     {
 
@@ -491,11 +484,17 @@ int main(int argc, char *argv[])
             fprintf(stderr, "%s: Błąd przy próbie utworzenia gniazda dla połączenia.\n", argv[0]);
             exit(1);
         }
+        if (con >= 4)
+        {
+            write(connection_socket_descriptor, "SERVER IS FULL\n", 30);
+        }
+        else
+        {
+            connections[con] = connection_socket_descriptor;
+            con++;
 
-        connections[con] = connection_socket_descriptor;
-        con++;
-
-        handleConnection(connection_socket_descriptor);
+            handleConnection(connection_socket_descriptor);
+        }
     }
 
     return (0);
