@@ -12,6 +12,7 @@
 #include <time.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <SDL2/SDL.h>
 #define MATRIX 15
 #define QUEUE_SIZE 5
 int connections[4];
@@ -343,8 +344,7 @@ void *ThreadBehavior(void *t_data)
         bzero(matrixbuf, 2000);
         bzero(buf, 2000);
         bzero(buf2, 100);
-
-        recv(th_data->connection_socket_descriptor, buf2, 1, 0);
+        recv(th_data->connection_socket_descriptor, buf2, 1, MSG_DONTWAIT);
         pthread_mutex_lock(&lock);
         for (int i = 0; i < 4; i++)
         {
@@ -433,10 +433,10 @@ void handleConnection(int connection_socket_descriptor)
 int main(int argc, char *argv[])
 {
     srand(time(0));
-    list_fill(blue, 4);
     list_fill(black, 1);
     list_fill(red, 2);
     list_fill(orange, 3);
+    list_fill(blue, 4);
     setlinebuf(stdout);
     fflush(stdout);
     int server_socket_descriptor;
@@ -476,9 +476,7 @@ int main(int argc, char *argv[])
     }
     while (1)
     {
-
         connection_socket_descriptor = accept(server_socket_descriptor, NULL, NULL);
-
         if (connection_socket_descriptor < 0)
         {
             fprintf(stderr, "%s: Błąd przy próbie utworzenia gniazda dla połączenia.\n", argv[0]);

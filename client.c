@@ -8,9 +8,23 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <math.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_thread.h>
+#include <SDL2/SDL_ttf.h>
 #define MATRIX 15
 #define BUF_SIZE 1024
 #define NUM_THREADS 5
+#define resolution 700
+enum KeyPressSurfaces
+{
+    KEY_PRESS_SURFACE_DEFAULT,
+    KEY_PRESS_SURFACE_UP,
+    KEY_PRESS_SURFACE_DOWN,
+    KEY_PRESS_SURFACE_LEFT,
+    KEY_PRESS_SURFACE_RIGHT,
+    KEY_PRESS_SURFACE_TOTAL
+};
 struct block
 {
     int value;
@@ -19,64 +33,23 @@ struct block
 };
 struct block matrix[MATRIX][MATRIX];
 struct block hand[80];
-void print_matrix(struct block matrix[][MATRIX])
+void x_y_to_matrix_coords(int *row, int *col, int x, int y)
 {
-    for (int i = 0; i < MATRIX; i++)
-    {
-        for (int j = 0; j < MATRIX; j++)
-        {
-            printf("[%d", matrix[i][j].value);
-            switch (matrix[i][j].color)
-            {
-            case 1:
-                printf(" B]");
-                break;
-            case 2:
-                printf(" R]");
-                break;
-            case 3:
-                printf(" O]");
-                break;
-            case 4:
-                printf(" BL]");
-                break;
-            default:
-                printf(" X]");
-                break;
-            }
-        }
-        printf("\n");
-    }
+    double x_ratio = resolution * 0.757 / 15;
+    double y_ratio = resolution * 0.757 / 15;
+    double xd = floor(x / x_ratio);
+    double yd = floor(y / y_ratio);
+    *row = (int)yd;
+    *col = (int)xd;
 }
-void print_hand(struct block array[80])
+void matrix_coords_to_x_y(int row, int col, int *x, int *y)
 {
-    for (int i = 0; i < 80; i++)
-    {
-        if (array[i].value != 0)
-        {
-            printf("|%d[%d", i, array[i].value, array[i].color);
-            switch (array[i].color)
-            {
-            case 1:
-                printf("|B]");
-                break;
-            case 2:
-                printf("|R]");
-                break;
-            case 3:
-                printf("|O]");
-                break;
-            case 4:
-                printf("|BL]");
-                break;
-            default:
-                printf("|X]");
-                break;
-            }
-            if (i % 10 == 9)
-                printf("\n");
-        }
-    }
+    double x_ratio = resolution * 0.757 / 15;
+    double y_ratio = resolution * 0.757 / 15;
+    double xd = floor(col * x_ratio);
+    double yd = floor(row * y_ratio);
+    *y = (int)yd+3;
+    *x = (int)xd+3;
 }
 void put_in_hand(struct block array[80], struct block b)
 {
@@ -204,6 +177,117 @@ void place_on_matrix(struct block matrix[][MATRIX], struct block b, int row, int
 {
     matrix[row][col] = b;
 }
+SDL_Surface *block_to_bmp(struct block b)
+{
+    char combined[20];
+    char *colorch;
+
+    int combined_int = atoi(combined);
+    SDL_Surface *bmp;
+    switch (b.color)
+    {
+    case 1:
+        colorch = "CZ";
+        break;
+    case 2:
+        colorch = "C";
+        break;
+    case 3:
+        colorch = "P";
+        break;
+    case 4:
+        colorch = "N";
+        break;
+    default:
+        break;
+    }
+    sprintf(combined, "blocks/%d%s.bmp", b.value, colorch);
+    bmp = SDL_LoadBMP(combined);
+    //printf("%s\n",combined);
+    return bmp;
+}
+void print_matrix(struct block matrix[][MATRIX], SDL_Rect viewport, SDL_Renderer *ren)
+{
+    int x, y;
+    SDL_Texture *tex;
+    SDL_Surface *bmp;
+    for (int i = 0; i < MATRIX; i++)
+    {
+        for (int j = 0; j < MATRIX; j++)
+        {
+            if (matrix[i][j].value != 0)
+            {
+                matrix_coords_to_x_y(i, j, &x, &y);
+                viewport.x = x;
+                viewport.y = y;
+                SDL_RenderSetViewport(ren, &viewport);
+                bmp = block_to_bmp(matrix[i][j]);
+                tex = SDL_CreateTextureFromSurface(ren, bmp);
+                SDL_RenderCopy(ren, tex, NULL, NULL);
+                SDL_DestroyTexture(tex);
+                SDL_FreeSurface(bmp);
+            }
+        }
+    }
+}
+void print_hand(struct block array[80], SDL_Rect viewport, SDL_Renderer *ren)
+{
+    int row = 16;
+    int col = 0;
+    int x, y;
+    SDL_Texture *tex;
+    SDL_Surface *bmp;
+    for (int i = 0; i < 80; i++)
+    {
+        if (col >= 15)
+        {
+            col = 0;
+            row++;
+        }
+        if (array[i].value != 0)
+        {
+            matrix_coords_to_x_y(row, col, &x, &y);
+            viewport.x = x;
+            viewport.y = y;
+            SDL_RenderSetViewport(ren, &viewport);
+            bmp = block_to_bmp(array[i]);
+            tex = SDL_CreateTextureFromSurface(ren, bmp);
+            SDL_RenderCopy(ren, tex, NULL, NULL);
+            SDL_DestroyTexture(tex);
+            SDL_FreeSurface(bmp);
+            col++;
+        }
+    }
+}
+int get_block_ID_from_hand(struct block array[80], int rowIn, int colIn)
+{
+    int row = 16;
+    int col = 0;
+    printf("RC :%d %d\n");
+    int x, y;
+    for (int i = 0; i < 80; i++)
+    {
+        if (col >= 15)
+        {
+            col = 0;
+            row++;
+        }
+        if (array[i].value != 0)
+            if (col == colIn && row == rowIn)
+            {
+                return i;
+                printf("ID %d\n", i);
+            }
+        col++;
+    }
+    return 999;
+}
+void switch_in_matrix(struct block matrix[][MATRIX],int rowA, int colA, int rowB, int colB){
+    struct block b;
+    b=matrix[rowA][colA];
+    matrix[rowA][colA]=matrix[rowB][colB];
+    matrix[rowB][colB]=b;
+}
 //struktura zawierająca dane, które zostanły przekazane do wątku
 struct thread_data_t
 {
@@ -213,7 +297,16 @@ struct thread_data_t
 //wskaźnik na funkcję opisującą zachowanie wątku
 void *ThreadBehavior(void *t_data)
 {
+    //The window we'll be rendering to
+    SDL_Window *window = NULL;
+
+    //The surface contained by the window
+    SDL_Surface *screenSurface = NULL;
+
+    //Initialize SDL
+
     struct thread_data_t *th_data = (struct thread_data_t *)t_data;
+    pthread_detach(pthread_self());
     char buf[2000];
     char conn[10] = "Connected\n";
     struct block b;
@@ -222,22 +315,154 @@ void *ThreadBehavior(void *t_data)
     int ID2;
     int row;
     int col;
+    int x, y;
+    int res = resolution;
+    int isHolding = 0;
+    int isMoving = 0;
+    int rowHold;
+    int colHold;
+    SDL_Window *w = SDL_CreateWindow("Hello world!", 100, 100, res, res, SDL_WINDOW_SHOWN);
+    SDL_Renderer *ren = SDL_CreateRenderer(w, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_Surface *bmp;
+    SDL_Texture *tex;
+    SDL_Event e;
+    int sw = 0;
+    int quit = 0;
+    bmp = SDL_LoadBMP("back.bmp");
+    tex = SDL_CreateTextureFromSurface(ren, bmp);
+    SDL_Rect Viewport_main;
+    Viewport_main.x = 0;
+    Viewport_main.y = 0;
+    Viewport_main.w = resolution * 0.757 / 15 -3;
+    Viewport_main.h = resolution * 0.757 / 15 -3;
+    SDL_Rect Viewport_back;
+    Viewport_back.x = 0;
+    Viewport_back.y = 0;
+    Viewport_back.w = resolution;
+    Viewport_back.h = resolution;
     while (th_data->connection_socket_descriptor)
     {
-        if (first == 0)
+        sw = 0;
+        while (SDL_PollEvent(&e) != 0)
         {
-            write(th_data->connection_socket_descriptor, conn, 10);
-            first++;
+            if (e.type == SDL_KEYDOWN)
+            {
+                //Select surfaces based on key press
+                switch (e.key.keysym.sym)
+                {
+                case SDLK_p:
+                    sw = 1;
+                    break;
+
+                case SDLK_h:
+                    sw = 3;
+                    break;
+
+                case SDLK_c:
+                    sw = 4;
+                    break;
+
+                case SDLK_b:
+                    sw = 5;
+                    break;
+                case SDLK_w:
+                    bmp = block_to_bmp(hand[0]);
+                    break;
+
+                case SDLK_q:
+                    exit(0);
+                    break;
+
+                default:
+                    break;
+                }
+            }
+            else if (e.type == SDL_MOUSEBUTTONDOWN)
+            {
+                SDL_GetMouseState(&x, &y);
+                printf("%d %d\n", x, y);
+                x_y_to_matrix_coords(&row, &col, x, y);
+                if (row >= 16 && row < 19 && col <= 14 && isHolding == 0)
+                {
+                    printf("Holding\n");
+                    printf("%d %d\n\n", row, col);
+                    rowHold = row;
+                    colHold = col;
+                    isHolding = 1;
+                }
+                else if (row >= 16 && row < 19 && col <= 14 && isHolding == 1)
+                {
+                    printf("Release\n");
+                    printf("%d %d\n\n", row, col);
+                    isHolding = 0;
+                    ID1 = get_block_ID_from_hand(hand, rowHold, colHold);
+                    ID2 = get_block_ID_from_hand(hand, row, col);
+                    if (ID1 != 999 && ID2 != 999)
+                        switch_in_hand(hand, ID1, ID2);
+                    rowHold = 0;
+                    colHold = 0;
+                }
+                else if (row <= 14 && col <= 14 && isHolding == 1)
+                {
+                    printf("Release\n");
+                    printf("%d %d\n\n", row, col);
+                    isHolding = 0;
+                    ID1 = get_block_ID_from_hand(hand, rowHold, colHold);
+                    if (ID1 != 999)
+                    {
+                        b = get_from_hand(hand, ID1);
+                        place_on_matrix(matrix, b, row, col);
+                    }
+                    rowHold = 0;
+                    colHold = 0;
+                }
+                else if (row <= 14 && col <= 14 && isMoving == 0)
+                {
+                    printf("Holding\n");
+                    printf("%d %d\n\n", row, col);
+                    rowHold = row;
+                    colHold = col;
+                    isMoving = 1;
+                }
+                else if (row <= 14 && col <= 14 && isMoving == 1)
+                {
+                    printf("Release\n");
+                    printf("%d %d\n\n", row, col);
+                    isMoving = 0;
+                    switch_in_matrix(matrix,row,col,rowHold,colHold);
+                    rowHold = 0;
+                    colHold = 0;
+                }
+
+                //                printf("%d %d\n", row, col);
+                //matrix_coords_to_x_y(row, col, &x, &y);
+                              
+            }
         }
-        int n = 0;
+        SDL_RenderClear(ren);
+        tex = SDL_CreateTextureFromSurface(ren, bmp);
+
         bzero(buf, 2000);
-        while ((buf[n++] = getchar()) != '\n')
-            ;
-        if (buf[0] == 'p')
-            print_matrix(matrix);
-        if (buf[0] == 'o')
-            print_hand(hand);
-        if (buf[0] == 'i')
+        //User requests quit
+
+        SDL_RenderSetViewport(ren, &Viewport_back);
+        //SDL_FreeSurface(bmp);
+        SDL_RenderCopy(ren, tex, NULL, NULL);
+        SDL_DestroyTexture(tex);
+        print_hand(hand, Viewport_main, ren);
+        print_matrix(matrix, Viewport_main, ren);
+        //SDL_FreeSurface(bmp);
+        int n = 0;
+        //printf("%d\n", sw);
+        //while ((buf[n++] = getchar()) != '\n')
+        ;
+        if (sw == 1)
+            sw=1;
+        else if (sw == 3)
+            print_hand(hand, Viewport_main, ren);
+        else if (sw == 5)
+            send(th_data->connection_socket_descriptor, "b", 1, MSG_DONTWAIT);
+        if (sw == 10)
         {
             printf("Podaj ID do polozenia: \n");
             n = 0;
@@ -260,7 +485,7 @@ void *ThreadBehavior(void *t_data)
             //            printf("%d%d\n", b.value, b.color);
             place_on_matrix(matrix, b, row, col);
         }
-        if (buf[0] == 'm')
+        else if (buf[0] == 'm')
         {
             printf("Podaj ID do zamiany: \n");
             n = 0;
@@ -275,17 +500,18 @@ void *ThreadBehavior(void *t_data)
             ID2 = atoi(buf);
             switch_in_hand(hand, ID1, ID2);
         }
-        if (buf[0] == 's')
+        else if (buf[0] == 's')
         {
-            write(th_data->connection_socket_descriptor, buf, 1);
+            send(th_data->connection_socket_descriptor, buf, 1, MSG_DONTWAIT);
             matrix_to_buffer(matrix, buf);
         }
-        if (buf[0] == 'c')
+        else if (sw == 4)
         {
-            write(th_data->connection_socket_descriptor, buf, 1);
+            send(th_data->connection_socket_descriptor, "c", 1, MSG_DONTWAIT);
             matrix_to_buffer(matrix, buf);
         }
-        write(th_data->connection_socket_descriptor, buf, 2000);
+        send(th_data->connection_socket_descriptor, buf, 2000, MSG_DONTWAIT);
+        SDL_RenderPresent(ren);
     }
     pthread_exit(NULL);
 }
@@ -365,6 +591,8 @@ void handleConnection(int connection_socket_descriptor)
 
 int main(int argc, char *argv[])
 {
+    SDL_Init(SDL_INIT_VIDEO);
+    TTF_Init();
     int connection_socket_descriptor;
     int connect_result;
     struct sockaddr_in server_address;
@@ -401,8 +629,13 @@ int main(int argc, char *argv[])
         fprintf(stderr, "%s: Błąd przy próbie połączenia z serwerem (%s:%i).\n", argv[0], argv[1], atoi(argv[2]));
         exit(1);
     }
-
+    printf("X\n");
     handleConnection(connection_socket_descriptor);
+    printf("X2\n");
+    while (1)
+    {
+        printf("X3\n");
+    }
 
     return 0;
 }
