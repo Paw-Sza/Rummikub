@@ -18,7 +18,6 @@
 int connections[4];
 int con = 0;
 int turn = 0;
-int ABCD = 10;
 int bl = 10;
 int re = 10;
 int or = 10;
@@ -73,7 +72,6 @@ void buffer_to_matrix(struct block matrix[][MATRIX], char *buffer)
     int iscol = 0;
     int row = 0;
     int col = -1;
-    int temp;
     char temp2[2] = "";
     for (int i = 0; i < strlen(buffer); i++)
     {
@@ -158,12 +156,12 @@ int row_check(struct block matrix[][MATRIX], int r, int c, int g)
     {
         return c + 1;
     }
+    return c + 1;
 }
 int matrix_check(struct block matrix2[][MATRIX], int sock)
 {
     int out;
     char buf[20];
-    char goodmsg[20] = "All good\n";
     int good = 1;
     for (int i = 0; i < MATRIX; i++)
     {
@@ -171,16 +169,17 @@ int matrix_check(struct block matrix2[][MATRIX], int sock)
         if (out != 999)
         {
             good = 0;
-            sprintf(buf, " Row %d: %d \n", i, out);
+            sprintf(buf, "@Blad w R %d K %d!", i, out);
             write(sock, buf, 20);
             return out;
         }
     }
     if (good == 1)
     {
-        write(sock, goodmsg, 20);
+        write(sock, "?", 20);
         return 999;
     }
+    return 999;
 }
 void list_fill(struct block array[10], int c)
 {
@@ -302,42 +301,25 @@ void *ThreadBehavior(void *t_data)
     pthread_detach(pthread_self());
     struct thread_data_t *th_data = (struct thread_data_t *)t_data;
     int ID;
+    int check;
     char buf[2000];
     char buf2[100];
     char matrixbuf[2000];
-    char wrong_turn[15] = "NOT YOUR TURN \n";
     int recv_matrix = 0;
-    /*    while(1){
-		bzero(buf, 2000);
-        bzero(buf2, 100);
-
-        read(th_data->connection_socket_descriptor, buf, 100);
-
-        pthread_mutex_lock(&lock);
-        		if(turn>2)turn=0;
-        printf("%d\n", turn);
-        for(int i=0;i<4;i++) {
-			if(connections[i]==th_data->connection_socket_descriptor){
-				sprintf(buf2, "Client %d:", i);
-				ID=i;
-			}
-            }
-		if(ID!=turn)
-		write(th_data->connection_socket_descriptor, wrong_turn, 15);            
-        if(ID==turn){
-        for(int i=0;i<4;i++) {
-			if(connections[i]!=th_data->connection_socket_descriptor){
-				write(connections[i], buf2, 100);
-                write(connections[i], buf, 100);
-			}
-            }
-            turn++;
-		}
-	pthread_mutex_unlock(&lock);
-    }*/
+    pthread_mutex_unlock(&lock);
     while (1)
     {
-
+        for (int i = 0; i < 4; i++)
+        {
+            if (turn != i && connections[i] != 0)
+            {
+                write(connections[i], "#0$\n", 5);
+            }
+            else
+                write(connections[turn], "#1$\n", 5);
+        }
+        if (turn == con)
+            turn = 0;
         bzero(matrixbuf, 2000);
         bzero(buf, 2000);
         bzero(buf2, 100);
@@ -350,65 +332,62 @@ void *ThreadBehavior(void *t_data)
                 ID = i;
             }
         }
-        if (buf2[0] == 'x')
+        if (turn == ID)
         {
-            bzero(buf, 2000);
-            matrix_to_buffer(matrix, buf);
-            write(th_data->connection_socket_descriptor, buf, 2000);
-            write(th_data->connection_socket_descriptor, "\n", 1);
-            //	for(int i=0;i<4;i++) {
-            //               write(connections[i], buf, 2000);
-            //			}
-        }
-        if (buf2[0] == 'b')
-        {
-            bzero(buf, 2000);
-            send_block(th_data->connection_socket_descriptor);
-            write(th_data->connection_socket_descriptor, "\n", 1);
-            //	for(int i=0;i<4;i++) {
-            //               write(connections[i], buf, 2000);
-            //			}
-        }
-        if (buf2[0] == 'c' || buf2[0] == 's')
-        {
-            recv_matrix = 1;
-            bzero(matrixbuf, 2000);
-            while (recv_matrix == 1)
-            {
-                recv(th_data->connection_socket_descriptor, buf, 1, 0);
-                //printf("%c", buf);
-                if (buf[0] == '+')
-                    recv_matrix = 1;
-                if (recv_matrix == 1)
-                {
-                    if (buf[0] == '=')
-                    {
-                        buffer_to_matrix(matrix_temp, matrixbuf);
-                        memcpy(matrix, matrix_temp, sizeof(matrix_temp));
-                        bzero(buf, 2000);
-                        matrix_to_buffer(matrix, buf);
-                        for (int i = 0; i < 4; i++)
-                        {
-                            if (th_data->connection_socket_descriptor != connections[i])
-                            {
-                                write(connections[i], buf, 2000);
-                                printf("\nSending matrixfrom %d  to %d \n",th_data->connection_socket_descriptor, connections[i]);
-                                write(th_data->connection_socket_descriptor, "\n", 1);
-                            }
-                        }
 
-                        recv_matrix = 0;
-                        print_matrix(matrix_temp);
-                    }
-                    else
+            if (buf2[0] == 'b')
+            {
+                bzero(buf, 2000);
+                send_block(th_data->connection_socket_descriptor);
+                write(th_data->connection_socket_descriptor, "\n", 1);
+            }
+            if (buf2[0] == 's' || buf2[0] == 't')
+            {
+                printf("1\n");
+                recv_matrix = 1;
+                bzero(matrixbuf, 2000);
+                while (recv_matrix == 1)
+                {
+                    recv(th_data->connection_socket_descriptor, buf, 1, 0);
+                    if (buf[0] == '+')
+                        recv_matrix = 1;
+                    if (recv_matrix == 1)
                     {
-                        strncat(matrixbuf, &buf[0], 1);
+                        if (buf[0] == '=')
+                        {
+                            buffer_to_matrix(matrix_temp, matrixbuf);
+                            //memcpy(matrix, matrix_temp, sizeof(matrix_temp));
+                            bzero(buf, 2000);
+                            matrix_to_buffer(matrix_temp, buf);
+                            for (int i = 0; i < 4; i++)
+                            {
+                                if (th_data->connection_socket_descriptor != connections[i] && connections[i] != 0)
+                                {
+                                    write(connections[i], buf, 2000);
+                                    printf("\nSending matrixfrom %d  to %d \n", th_data->connection_socket_descriptor, connections[i]);
+                                    write(th_data->connection_socket_descriptor, "\n", 1);
+                                }
+                            }
+
+                            recv_matrix = 0;
+                            printf("2\n");
+                            print_matrix(matrix_temp);
+                        }
+                        else
+                        {
+                            strncat(matrixbuf, &buf[0], 1);
+                        }
                     }
                 }
+                printf("3\n");
+                check = matrix_check(matrix_temp, th_data->connection_socket_descriptor);
+                printf("4\n");
+                if (buf2[0] == 't' && check == 999)
+                {
+                    memcpy(matrix, matrix_temp, sizeof(matrix_temp));
+                    turn++;
+                }
             }
-            int check = matrix_check(matrix_temp, th_data->connection_socket_descriptor);
-            if (buf2[0] == 's' && check == 999)
-                memcpy(matrix, matrix_temp, sizeof(matrix_temp));
         }
         pthread_mutex_unlock(&lock);
     }
@@ -424,7 +403,6 @@ void handleConnection(int connection_socket_descriptor)
         send_block(connection_socket_descriptor);
     //wynik funkcji tworzącej wątek
     int create_result = 0;
-    char buf[100];
     //uchwyt na wątek
     pthread_t thread1;
 
