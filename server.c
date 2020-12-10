@@ -16,7 +16,7 @@
 #define MATRIX 15
 #define QUEUE_SIZE 5
 int connections[4];
-    int con = 0;
+int con = 0;
 int turn = 0;
 int ABCD = 10;
 int bl = 10;
@@ -113,57 +113,54 @@ void buffer_to_matrix(struct block matrix[][MATRIX], char *buffer)
 }
 int row_check(struct block matrix[][MATRIX], int r, int c, int g)
 {
-    if(c>=MATRIX-1)
+    if (c >= MATRIX - 1)
     {
         return 999;
     }
-    if(matrix[r][c].value==0)
+    if (matrix[r][c].value == 0)
     {
-        row_check(matrix, r, c+1, g);
+        row_check(matrix, r, c + 1, g);
     }
-    else if(matrix[r][c].value<matrix[r][c+1].value && matrix[r][c].color==matrix[r][c+1].color && abs(matrix[r][c].value-matrix[r][c+1].value)==1)
+    else if (matrix[r][c].value < matrix[r][c + 1].value && matrix[r][c].color == matrix[r][c + 1].color && abs(matrix[r][c].value - matrix[r][c + 1].value) == 1)
     {
-        row_check(matrix, r, c+1, g+1);
-        g=g+1;
+        row_check(matrix, r, c + 1, g + 1);
+        g = g + 1;
     }
-    else if(matrix[r][c].value>matrix[r][c+1].value && matrix[r][c].color==matrix[r][c+1].color && abs(matrix[r][c].value-matrix[r][c+1].value)==1)
+    else if (matrix[r][c].value > matrix[r][c + 1].value && matrix[r][c].color == matrix[r][c + 1].color && abs(matrix[r][c].value - matrix[r][c + 1].value) == 1)
     {
-        g=g+1;
-        row_check(matrix, r, c+1, g+1);
+        g = g + 1;
+        row_check(matrix, r, c + 1, g + 1);
     }
-    else if(matrix[r][c].value==matrix[r][c+1].value &&
-            matrix[r][c].color!=matrix[r][c+1].color &&
-            matrix[r][c].value==matrix[r][c+2].value &&
-            matrix[r][c].color!=matrix[r][c+2].color&&
-            matrix[r][c].value==matrix[r][c+3].value &&
-            matrix[r][c].color!=matrix[r][c+3].color &&
-            matrix[r][c+4].value==0)
+    else if (matrix[r][c].value == matrix[r][c + 1].value &&
+             matrix[r][c].color != matrix[r][c + 1].color &&
+             matrix[r][c].value == matrix[r][c + 2].value &&
+             matrix[r][c].color != matrix[r][c + 2].color &&
+             matrix[r][c].value == matrix[r][c + 3].value &&
+             matrix[r][c].color != matrix[r][c + 3].color &&
+             matrix[r][c + 4].value == 0)
     {
 
-        row_check(matrix, r, c+4, g+3);
-
+        row_check(matrix, r, c + 4, g + 3);
     }
-    else if(matrix[r][c].value==matrix[r][c+1].value &&
-            matrix[r][c].color!=matrix[r][c+1].color &&
-            matrix[r][c].value==matrix[r][c+2].value &&
-            matrix[r][c].color!=matrix[r][c+2].color&&
-            matrix[r][c+3].value==0)
+    else if (matrix[r][c].value == matrix[r][c + 1].value &&
+             matrix[r][c].color != matrix[r][c + 1].color &&
+             matrix[r][c].value == matrix[r][c + 2].value &&
+             matrix[r][c].color != matrix[r][c + 2].color &&
+             matrix[r][c + 3].value == 0)
     {
-        row_check(matrix, r, c+3, g+2);
-
+        row_check(matrix, r, c + 3, g + 2);
     }
-    else if (g>=2 && matrix[r][c+1].value==0)
+    else if (g >= 2 && matrix[r][c + 1].value == 0)
     {
-        row_check(matrix, r, c+1, 0);
+        row_check(matrix, r, c + 1, 0);
     }
     else
     {
-        return c+1;
+        return c + 1;
     }
 }
 int matrix_check(struct block matrix2[][MATRIX], int sock)
 {
-    print_matrix(matrix2);
     int out;
     char buf[20];
     char goodmsg[20] = "All good\n";
@@ -339,7 +336,7 @@ void *ThreadBehavior(void *t_data)
 	pthread_mutex_unlock(&lock);
     }*/
     while (1)
-    {   
+    {
 
         bzero(matrixbuf, 2000);
         bzero(buf, 2000);
@@ -379,7 +376,7 @@ void *ThreadBehavior(void *t_data)
             while (recv_matrix == 1)
             {
                 recv(th_data->connection_socket_descriptor, buf, 1, 0);
-                printf("%c", buf);
+                //printf("%c", buf);
                 if (buf[0] == '+')
                     recv_matrix = 1;
                 if (recv_matrix == 1)
@@ -387,6 +384,19 @@ void *ThreadBehavior(void *t_data)
                     if (buf[0] == '=')
                     {
                         buffer_to_matrix(matrix_temp, matrixbuf);
+                        memcpy(matrix, matrix_temp, sizeof(matrix_temp));
+                        bzero(buf, 2000);
+                        matrix_to_buffer(matrix, buf);
+                        for (int i = 0; i < 4; i++)
+                        {
+                            if (th_data->connection_socket_descriptor != connections[i])
+                            {
+                                write(connections[i], buf, 2000);
+                                printf("\nSending matrixfrom %d  to %d \n",th_data->connection_socket_descriptor, connections[i]);
+                                write(th_data->connection_socket_descriptor, "\n", 1);
+                            }
+                        }
+
                         recv_matrix = 0;
                         print_matrix(matrix_temp);
                     }
@@ -397,7 +407,7 @@ void *ThreadBehavior(void *t_data)
                 }
             }
             int check = matrix_check(matrix_temp, th_data->connection_socket_descriptor);
-            if (buf2[0] == 's' && check==999)
+            if (buf2[0] == 's' && check == 999)
                 memcpy(matrix, matrix_temp, sizeof(matrix_temp));
         }
         pthread_mutex_unlock(&lock);
@@ -410,7 +420,8 @@ void *ThreadBehavior(void *t_data)
 void handleConnection(int connection_socket_descriptor)
 {
     printf("Nowe polaczenie \n");
-    for(int j=0;j<14;j++)send_block(connection_socket_descriptor);
+    for (int j = 0; j < 14; j++)
+        send_block(connection_socket_descriptor);
     //wynik funkcji tworzącej wątek
     int create_result = 0;
     char buf[100];

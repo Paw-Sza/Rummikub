@@ -16,15 +16,7 @@
 #define BUF_SIZE 1024
 #define NUM_THREADS 5
 #define resolution 700
-enum KeyPressSurfaces
-{
-    KEY_PRESS_SURFACE_DEFAULT,
-    KEY_PRESS_SURFACE_UP,
-    KEY_PRESS_SURFACE_DOWN,
-    KEY_PRESS_SURFACE_LEFT,
-    KEY_PRESS_SURFACE_RIGHT,
-    KEY_PRESS_SURFACE_TOTAL
-};
+
 struct block
 {
     int value;
@@ -32,7 +24,37 @@ struct block
     int unused;
 };
 struct block matrix[MATRIX][MATRIX];
+struct block matrix_saved[MATRIX][MATRIX];
 struct block hand[80];
+void print_matrix_console(struct block matrix[][MATRIX])
+{
+    for (int i = 0; i < MATRIX; i++)
+    {
+        for (int j = 0; j < MATRIX; j++)
+        {
+            printf("[%d", matrix[i][j].value);
+            switch (matrix[i][j].color)
+            {
+            case 1:
+                printf(" B]");
+                break;
+            case 2:
+                printf(" R]");
+                break;
+            case 3:
+                printf(" O]");
+                break;
+            case 4:
+                printf(" BL]");
+                break;
+            default:
+                printf(" X]");
+                break;
+            }
+        }
+        printf("\n");
+    }
+}
 void x_y_to_matrix_coords(int *row, int *col, int x, int y)
 {
     double x_ratio = resolution * 0.757 / 15;
@@ -48,8 +70,8 @@ void matrix_coords_to_x_y(int row, int col, int *x, int *y)
     double y_ratio = resolution * 0.757 / 15;
     double xd = floor(col * x_ratio);
     double yd = floor(row * y_ratio);
-    *y = (int)yd+3;
-    *x = (int)xd+3;
+    *y = (int)yd + 3;
+    *x = (int)xd + 3;
 }
 void put_in_hand(struct block array[80], struct block b)
 {
@@ -259,6 +281,45 @@ void print_hand(struct block array[80], SDL_Rect viewport, SDL_Renderer *ren)
         }
     }
 }
+void render_button(char *source, int row, int col, SDL_Rect viewport, SDL_Renderer *ren)
+{
+    int x, y;
+    SDL_Texture *tex;
+    SDL_Surface *bmp;
+    viewport.w = resolution * 0.757 / 15 * 3;
+    viewport.h = resolution * 0.757 / 15;
+    matrix_coords_to_x_y(row, col, &x, &y);
+    viewport.x = x;
+    viewport.y = y;
+    SDL_RenderSetViewport(ren, &viewport);
+    bmp = SDL_LoadBMP(source);
+    tex = SDL_CreateTextureFromSurface(ren, bmp);
+    SDL_RenderCopy(ren, tex, NULL, NULL);
+    SDL_DestroyTexture(tex);
+    SDL_FreeSurface(bmp);
+    viewport.w = resolution * 0.757 / 15;
+    viewport.h = resolution * 0.757 / 15;
+}
+void render_text(char *text, TTF_Font *gFont, double size, int row, int col, SDL_Rect viewport, SDL_Renderer *ren)
+{
+    SDL_Color textColor = {0, 0, 0};
+    int x, y;
+    SDL_Texture *tex;
+    SDL_Surface *bmp;
+    viewport.w = size;
+    viewport.h = resolution * 0.757 / 15;
+    matrix_coords_to_x_y(row, col, &x, &y);
+    viewport.x = x;
+    viewport.y = y;
+    SDL_RenderSetViewport(ren, &viewport);
+    bmp = TTF_RenderText_Blended(gFont, text, textColor);
+    tex = SDL_CreateTextureFromSurface(ren, bmp);
+    SDL_RenderCopy(ren, tex, NULL, NULL);
+    SDL_DestroyTexture(tex);
+    SDL_FreeSurface(bmp);
+    viewport.w = resolution * 0.757 / 15;
+    viewport.h = resolution * 0.757 / 15;
+}
 int get_block_ID_from_hand(struct block array[80], int rowIn, int colIn)
 {
     int row = 16;
@@ -282,13 +343,37 @@ int get_block_ID_from_hand(struct block array[80], int rowIn, int colIn)
     }
     return 999;
 }
-void switch_in_matrix(struct block matrix[][MATRIX],int rowA, int colA, int rowB, int colB){
+void switch_in_matrix(struct block matrix[][MATRIX], int rowA, int colA, int rowB, int colB)
+{
     struct block b;
-    b=matrix[rowA][colA];
-    matrix[rowA][colA]=matrix[rowB][colB];
-    matrix[rowB][colB]=b;
+    b = matrix[rowA][colA];
+    matrix[rowA][colA] = matrix[rowB][colB];
+    matrix[rowB][colB] = b;
 }
-//struktura zawierająca dane, które zostanły przekazane do wątku
+void get_from_matrix_to_hand(struct block matrix[][MATRIX], struct block hand[80], int rowA, int colA)
+{
+    struct block b;
+    b = matrix[rowA][colA];
+    if (b.unused != 0)
+    {
+        matrix[rowA][colA].value = 0;
+        matrix[rowA][colA].color = 0;
+        matrix[rowA][colA].value = 0;
+        put_in_hand(hand, b);
+    }
+}
+int is_valid_ip(char *ip)
+{
+    struct sockaddr_in sa;
+    int result = inet_pton(AF_INET, ip, &(sa.sin_addr));
+    return result != 0;
+}
+int is_valid_port(char *port)
+{
+    struct sockaddr_in sa;
+    int result = htons(atoi(port));
+    return result != 0;
+} //struktura zawierająca dane, które zostanły przekazane do wątku
 struct thread_data_t
 {
     int connection_socket_descriptor;
@@ -321,7 +406,7 @@ void *ThreadBehavior(void *t_data)
     int isMoving = 0;
     int rowHold;
     int colHold;
-    SDL_Window *w = SDL_CreateWindow("Hello world!", 100, 100, res, res, SDL_WINDOW_SHOWN);
+    SDL_Window *w = SDL_CreateWindow("Rummikub", 100, 100, res, res, SDL_WINDOW_SHOWN);
     SDL_Renderer *ren = SDL_CreateRenderer(w, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     SDL_Surface *bmp;
     SDL_Texture *tex;
@@ -333,8 +418,8 @@ void *ThreadBehavior(void *t_data)
     SDL_Rect Viewport_main;
     Viewport_main.x = 0;
     Viewport_main.y = 0;
-    Viewport_main.w = resolution * 0.757 / 15 -3;
-    Viewport_main.h = resolution * 0.757 / 15 -3;
+    Viewport_main.w = resolution * 0.757 / 15 - 3;
+    Viewport_main.h = resolution * 0.757 / 15 - 3;
     SDL_Rect Viewport_back;
     Viewport_back.x = 0;
     Viewport_back.y = 0;
@@ -369,7 +454,7 @@ void *ThreadBehavior(void *t_data)
                     bmp = block_to_bmp(hand[0]);
                     break;
 
-                case SDLK_q:
+                case SDLK_END:
                     exit(0);
                     break;
 
@@ -382,18 +467,16 @@ void *ThreadBehavior(void *t_data)
                 SDL_GetMouseState(&x, &y);
                 printf("%d %d\n", x, y);
                 x_y_to_matrix_coords(&row, &col, x, y);
-                if (row >= 16 && row < 19 && col <= 14 && isHolding == 0)
+                //if click on hand not holding
+                if (row >= 16 && row < 19 && col <= 14 && isHolding == 0 && isMoving == 0)
                 {
-                    printf("Holding\n");
-                    printf("%d %d\n\n", row, col);
                     rowHold = row;
                     colHold = col;
                     isHolding = 1;
                 }
-                else if (row >= 16 && row < 19 && col <= 14 && isHolding == 1)
+                //if click on hand holding
+                else if (row >= 16 && row < 19 && col <= 14 && isHolding == 1 && isMoving == 0)
                 {
-                    printf("Release\n");
-                    printf("%d %d\n\n", row, col);
                     isHolding = 0;
                     ID1 = get_block_ID_from_hand(hand, rowHold, colHold);
                     ID2 = get_block_ID_from_hand(hand, row, col);
@@ -402,41 +485,63 @@ void *ThreadBehavior(void *t_data)
                     rowHold = 0;
                     colHold = 0;
                 }
-                else if (row <= 14 && col <= 14 && isHolding == 1)
+                //if click on matrix holding
+                else if (row <= 14 && col <= 14 && isHolding == 1 && isMoving == 0)
                 {
-                    printf("Release\n");
-                    printf("%d %d\n\n", row, col);
                     isHolding = 0;
                     ID1 = get_block_ID_from_hand(hand, rowHold, colHold);
-                    if (ID1 != 999)
+                    if (ID1 != 999 && matrix[row][col].value == 0)
                     {
                         b = get_from_hand(hand, ID1);
                         place_on_matrix(matrix, b, row, col);
+                        matrix[row][col].unused = 1;
                     }
                     rowHold = 0;
                     colHold = 0;
+                    print_matrix_console(matrix);
+                    send(th_data->connection_socket_descriptor, "s", 1, 0);
+                    bzero(buf, 2000);
+                    matrix_to_buffer(matrix, buf);
+                    send(th_data->connection_socket_descriptor, buf, 2000, 0);
                 }
-                else if (row <= 14 && col <= 14 && isMoving == 0)
+                //if click on matrix not holding or moving
+                else if (row <= 14 && col <= 14 && isMoving == 0 && isHolding == 0)
                 {
-                    printf("Holding\n");
-                    printf("%d %d\n\n", row, col);
+                    printf("Moving %d %d \n", matrix[row][col].value, matrix[row][col].color);
                     rowHold = row;
                     colHold = col;
                     isMoving = 1;
                 }
-                else if (row <= 14 && col <= 14 && isMoving == 1)
+                //if click on matrix not holding or moving
+                else if (row <= 14 && col <= 14 && isMoving == 1 && isHolding == 0)
                 {
-                    printf("Release\n");
-                    printf("%d %d\n\n", row, col);
                     isMoving = 0;
-                    switch_in_matrix(matrix,row,col,rowHold,colHold);
+                    switch_in_matrix(matrix, row, col, rowHold, colHold);
                     rowHold = 0;
                     colHold = 0;
+                    print_matrix_console(matrix);
+                    send(th_data->connection_socket_descriptor, "s", 1, 0);
+                    bzero(buf, 2000);
+                    matrix_to_buffer(matrix, buf);
+                    send(th_data->connection_socket_descriptor, buf, 2000, 0);
+                    //if click on matrix moving
+                }
+                if (row >= 16 && row < 19 && col <= 14 && isMoving == 1 && isHolding == 0)
+                {
+                    printf("Trying ot put in hand %d %d , %d %d %d\n", rowHold, colHold, matrix[rowHold][colHold].value, matrix[rowHold][colHold].color, matrix[rowHold][colHold].unused);
+                    isMoving = 0;
+                    get_from_matrix_to_hand(matrix, hand, rowHold, colHold);
+                    rowHold = 0;
+                    colHold = 0;
+                    print_matrix_console(matrix);
+                    send(th_data->connection_socket_descriptor, "s", 1, 0);
+                    bzero(buf, 2000);
+                    matrix_to_buffer(matrix, buf);
+                    send(th_data->connection_socket_descriptor, buf, 2000, 0);
                 }
 
                 //                printf("%d %d\n", row, col);
                 //matrix_coords_to_x_y(row, col, &x, &y);
-                              
             }
         }
         SDL_RenderClear(ren);
@@ -457,7 +562,7 @@ void *ThreadBehavior(void *t_data)
         //while ((buf[n++] = getchar()) != '\n')
         ;
         if (sw == 1)
-            sw=1;
+            sw = 1;
         else if (sw == 3)
             print_hand(hand, Viewport_main, ren);
         else if (sw == 5)
@@ -465,44 +570,14 @@ void *ThreadBehavior(void *t_data)
         if (sw == 10)
         {
             printf("Podaj ID do polozenia: \n");
-            n = 0;
-            bzero(buf, 2000);
-            while ((buf[n++] = getchar()) != '\n')
-                ;
-            ID1 = atoi(buf);
-            printf("Podaj rząd i kolumnę: \n");
-            n = 0;
-            bzero(buf, 2000);
-            while ((buf[n++] = getchar()) != '\n')
-                ;
-            row = atoi(buf);
-            n = 0;
-            bzero(buf, 2000);
-            while ((buf[n++] = getchar()) != '\n')
-                ;
-            col = atoi(buf);
-            b = get_from_hand(hand, ID1);
-            //            printf("%d%d\n", b.value, b.color);
-            place_on_matrix(matrix, b, row, col);
         }
         else if (buf[0] == 'm')
         {
             printf("Podaj ID do zamiany: \n");
-            n = 0;
-            bzero(buf, 2000);
-            while ((buf[n++] = getchar()) != '\n')
-                ;
-            ID1 = atoi(buf);
-            n = 0;
-            bzero(buf, 2000);
-            while ((buf[n++] = getchar()) != '\n')
-                ;
-            ID2 = atoi(buf);
-            switch_in_hand(hand, ID1, ID2);
         }
         else if (buf[0] == 's')
         {
-            send(th_data->connection_socket_descriptor, buf, 1, MSG_DONTWAIT);
+            send(th_data->connection_socket_descriptor, "s", 1, MSG_DONTWAIT);
             matrix_to_buffer(matrix, buf);
         }
         else if (sw == 4)
@@ -510,7 +585,6 @@ void *ThreadBehavior(void *t_data)
             send(th_data->connection_socket_descriptor, "c", 1, MSG_DONTWAIT);
             matrix_to_buffer(matrix, buf);
         }
-        send(th_data->connection_socket_descriptor, buf, 2000, MSG_DONTWAIT);
         SDL_RenderPresent(ren);
     }
     pthread_exit(NULL);
@@ -548,9 +622,13 @@ void handleConnection(int connection_socket_descriptor)
                 recv_matrix = 1;
             if (recv_matrix == 1)
             {
+                printf("Recieving matrix\n");
                 if (buf[0] == '=')
                 {
+
                     buffer_to_matrix(matrix, matrixbuf);
+                    print_matrix_console(matrix);
+                    memcpy(matrix_saved, matrix, sizeof(matrix));
                     recv_matrix = 0;
                     bzero(buf, 2000);
                     bzero(matrixbuf, 2000);
@@ -597,45 +675,138 @@ int main(int argc, char *argv[])
     int connect_result;
     struct sockaddr_in server_address;
     struct hostent *server_host_entity;
+    int start = 0;
+    int row, col, x, y, editing;
+    double tile = resolution * 0.757 / 15;
+    TTF_Font *gFont = TTF_OpenFont("arial.ttf", 100);
+    char IP[100] = "127.0.0.1";
+    char PORT[100] = "1236";
+    char ERROR[100] = "";
+    SDL_Window *gWindow = SDL_CreateWindow("Rummikub-setup", 100, 100, 500, 500, SDL_WINDOW_SHOWN);
 
-    if (argc != 3)
+    //The window renderer
+    SDL_Renderer *gRenderer = SDL_CreateRenderer(gWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+    SDL_Texture *gTexture;
+    SDL_Surface *background = SDL_LoadBMP("back2.bmp");
+    SDL_Event event;
+    SDL_Rect Viewport_main;
+    Viewport_main.x = 0;
+    Viewport_main.y = 0;
+    Viewport_main.w = resolution * 0.757 / 15;
+    Viewport_main.h = resolution * 0.757 / 15;
+    SDL_Rect Viewport_back;
+    Viewport_back.x = 0;
+    Viewport_back.y = 0;
+    Viewport_back.w = 500;
+    Viewport_back.h = 500;
+    SDL_StartTextInput();
+    while (start == 0)
     {
-        fprintf(stderr, "Sposób uĹźycia: %s server_name port_number\n", argv[0]);
-        exit(1);
-    }
+        SDL_RenderSetViewport(gRenderer, &Viewport_back);
+        gTexture = SDL_CreateTextureFromSurface(gRenderer, background);
+        SDL_RenderCopy(gRenderer, gTexture, NULL, NULL);
+        SDL_DestroyTexture(gTexture);
+        render_button("buttons/blank.bmp", 8, 9, Viewport_main, gRenderer);
+        render_text("Polacz", gFont, tile * 3, 8, 9, Viewport_main, gRenderer);
+        render_button("buttons/blank.bmp", 3, 3, Viewport_main, gRenderer);
+        render_text("IP:", gFont, tile, 3, 0, Viewport_main, gRenderer);
+        render_text(IP, gFont, tile * 3, 3, 3, Viewport_main, gRenderer);
+        render_text("Port:", gFont, tile * 2, 6, 0, Viewport_main, gRenderer);
+        render_button("buttons/blank.bmp", 6, 3, Viewport_main, gRenderer);
+        render_text(PORT, gFont, tile * 3, 6, 3, Viewport_main, gRenderer);
+        render_text(ERROR, gFont, tile * 14, 11, 0, Viewport_main, gRenderer);
+        render_text("Witaj w Rummikub!", gFont, tile * 5, 0, 5, Viewport_main, gRenderer);
+        render_text("Kliknij na IP lub port i wpisz wartosc", gFont, tile * 10, 1, 3, Viewport_main, gRenderer);
+        render_text("Sterowanie:", gFont, tile * 4, 2, 5, Viewport_main, gRenderer);
+        render_text("Backspace - wyzerowanie", gFont, tile * 6, 3, 7, Viewport_main, gRenderer);
+        render_text("END - zamkniecie programu", gFont, tile * 6, 4, 7, Viewport_main, gRenderer);
 
-    server_host_entity = gethostbyname(argv[1]);
-    if (!server_host_entity)
-    {
-        fprintf(stderr, "%s: Nie moĹźna uzyskać adresu IP serwera.\n", argv[0]);
-        exit(1);
-    }
+        SDL_DestroyTexture(gTexture);
+        SDL_RenderPresent(gRenderer);
+        SDL_RenderClear(gRenderer);
+        if (SDL_PollEvent(&event))
+        {
 
-    connection_socket_descriptor = socket(PF_INET, SOCK_STREAM, 0);
-    if (connection_socket_descriptor < 0)
-    {
-        fprintf(stderr, "%s: Błąd przy probie utworzenia gniazda.\n", argv[0]);
-        exit(1);
-    }
+            switch (event.type)
+            {
 
-    memset(&server_address, 0, sizeof(struct sockaddr));
-    server_address.sin_family = AF_INET;
-    memcpy(&server_address.sin_addr.s_addr, server_host_entity->h_addr, server_host_entity->h_length);
-    server_address.sin_port = htons(atoi(argv[2]));
+            case SDL_TEXTINPUT:
+                /* Add new text onto the end of our text */
+                if (editing == 1)
+                    strcat(IP, event.text.text);
+                if (editing == 2)
+                    strcat(PORT, event.text.text);
+                break;
+            case SDL_MOUSEBUTTONDOWN:
+                SDL_GetMouseState(&x, &y);
+                printf("%d %d\n", x, y);
+                x_y_to_matrix_coords(&row, &col, x, y);
+                printf("%d %d\n", row, col);
+                if (row == 3 && col >= 3 && col <= 6)
+                {
+                    editing = 1;
+                }
+                else if (row == 6 && col >= 3 && col <= 6)
+                {
+                    editing = 2;
+                }
+                else if (row == 8 && col >= 9 && col <= 11)
+                {
+                    if (is_valid_ip(IP) != 1)
+                    {
+                        sprintf(ERROR, "Adres IP jest w niepoprawnym formacie");
+                    }
+                    else if (is_valid_port(PORT) != 1)
+                    {
+                        sprintf(ERROR, "Port jest w niepoprawnym formacie");
+                    }
+                    else
+                    {
 
-    connect_result = connect(connection_socket_descriptor, (struct sockaddr *)&server_address, sizeof(struct sockaddr));
-    if (connect_result < 0)
-    {
-        fprintf(stderr, "%s: Błąd przy próbie połączenia z serwerem (%s:%i).\n", argv[0], argv[1], atoi(argv[2]));
-        exit(1);
+                        sprintf(ERROR, "");
+                        server_host_entity = gethostbyname(IP);
+                        if (!server_host_entity)
+                        {
+                            sprintf(ERROR, "Nie mozna uzyskac adresu IP serwera");
+                        }
+
+                        connection_socket_descriptor = socket(PF_INET, SOCK_STREAM, 0);
+                        if (connection_socket_descriptor < 0)
+                        {
+                            sprintf(ERROR, "Blad przy probie utworzenia gniazda");
+                        }
+
+                        memset(&server_address, 0, sizeof(struct sockaddr));
+                        server_address.sin_family = AF_INET;
+                        memcpy(&server_address.sin_addr.s_addr, server_host_entity->h_addr, server_host_entity->h_length);
+                        server_address.sin_port = htons(atoi(PORT));
+
+                        connect_result = connect(connection_socket_descriptor, (struct sockaddr *)&server_address, sizeof(struct sockaddr));
+                        if (connect_result < 0)
+                        {
+                            sprintf(ERROR, "Blad przy probie polaczenia z serwerem (%s:%d)", IP, atoi(PORT));
+                        }
+                        else if (connect_result >= 0)
+                            start = 1;
+                    }
+                }
+                break;
+            }
+            if (event.key.keysym.sym == SDLK_BACKSPACE)
+            {
+                if (editing == 1)
+                    sprintf(IP, "");
+                if (editing == 2)
+                    sprintf(PORT, "");
+            }
+            if (event.key.keysym.sym == SDLK_END)
+                exit(0);
+        }
     }
-    printf("X\n");
+    SDL_StartTextInput();
+    SDL_DestroyWindow(gWindow);
     handleConnection(connection_socket_descriptor);
-    printf("X2\n");
-    while (1)
-    {
-        printf("X3\n");
-    }
 
     return 0;
 }
