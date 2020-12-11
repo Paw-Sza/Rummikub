@@ -16,7 +16,7 @@
 #define MATRIX 15
 #define BUF_SIZE 1024
 #define NUM_THREADS 5
-#define resolution 600
+#define resolution 400
 double tile = resolution * 0.757 / 15;
 int turn = 0;
 char check_error[50];
@@ -508,7 +508,6 @@ void *ThreadBehavior(void *t_data)
                 else if (row <= 14 && col <= 14 && isMoving == 1 && isHolding == 0)
                 {
                     isMoving = 0;
-                    hasMoved = 1;
                     switch_in_matrix(matrix, row, col, rowHold, colHold);
                     rowHold = 0;
                     colHold = 0;

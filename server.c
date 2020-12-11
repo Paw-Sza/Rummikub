@@ -156,7 +156,6 @@ int row_check(struct block matrix[][MATRIX], int r, int c, int g)
     {
         return c + 1;
     }
-    return c + 1;
 }
 int matrix_check(struct block matrix2[][MATRIX], int sock)
 {
@@ -179,7 +178,6 @@ int matrix_check(struct block matrix2[][MATRIX], int sock)
         write(sock, "?", 20);
         return 999;
     }
-    return 999;
 }
 void list_fill(struct block array[10], int c)
 {
