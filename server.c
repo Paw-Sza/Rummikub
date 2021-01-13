@@ -335,13 +335,13 @@ void *ThreadBehavior(void *t_data)
 
             if (buf2[0] == 'b')
             {
+                recv_matrix = 0;
                 bzero(buf, 2000);
                 send_block(th_data->connection_socket_descriptor);
                 write(th_data->connection_socket_descriptor, "\n", 1);
             }
             if (buf2[0] == 's' || buf2[0] == 't')
             {
-                printf("1\n");
                 recv_matrix = 1;
                 bzero(matrixbuf, 2000);
                 while (recv_matrix == 1)
@@ -362,13 +362,12 @@ void *ThreadBehavior(void *t_data)
                                 if (th_data->connection_socket_descriptor != connections[i] && connections[i] != 0)
                                 {
                                     write(connections[i], buf, 2000);
-                                    printf("\nSending matrixfrom %d  to %d \n", th_data->connection_socket_descriptor, connections[i]);
+                                    printf("\nSending matrix from %d  to %d \n", th_data->connection_socket_descriptor, connections[i]);
                                     write(th_data->connection_socket_descriptor, "\n", 1);
                                 }
                             }
 
                             recv_matrix = 0;
-                            printf("2\n");
                             print_matrix(matrix_temp);
                         }
                         else
@@ -377,9 +376,7 @@ void *ThreadBehavior(void *t_data)
                         }
                     }
                 }
-                printf("3\n");
                 check = matrix_check(matrix_temp, th_data->connection_socket_descriptor);
-                printf("4\n");
                 if (buf2[0] == 't' && check == 999)
                 {
                     memcpy(matrix, matrix_temp, sizeof(matrix_temp));

@@ -14,8 +14,6 @@
 #include <SDL2/SDL_thread.h>
 #include <SDL2/SDL_ttf.h>
 #define MATRIX 15
-#define BUF_SIZE 1024
-#define NUM_THREADS 5
 #define resolution 400
 double tile = resolution * 0.757 / 15;
 int turn = 0;
@@ -381,7 +379,6 @@ struct thread_data_t
 //wskaźnik na funkcję opisującą zachowanie wątku
 void *ThreadBehavior(void *t_data)
 {
-    //The window we'll be rendering to
     struct thread_data_t *th_data = (struct thread_data_t *)t_data;
     pthread_detach(pthread_self());
     char buf[2000];
@@ -424,7 +421,6 @@ void *ThreadBehavior(void *t_data)
 
             if (e.type == SDL_KEYDOWN)
             {
-                //Select surfaces based on key press
                 switch (e.key.keysym.sym)
                 {
                 case SDLK_END:
@@ -461,8 +457,10 @@ void *ThreadBehavior(void *t_data)
                   //click on End Turn
                 else if (row == 3 && col <= 19 && col >= 16)
                 {
+                    //if no move has been done request block
                     if (hasMoved == 0)
                         send(th_data->connection_socket_descriptor, "b", 1, 0);
+                    //end turn and send final matrix
                     send(th_data->connection_socket_descriptor, "t", 1, 0);
                     bzero(buf, 2000);
                     matrix_to_buffer(matrix, buf);
@@ -611,11 +609,17 @@ void handleConnection(int connection_socket_descriptor)
             {
             case '+':
                 recv_matrix = 1;
+                recv_block = 0;
+                recv_turn = 0;
+                recv_check = 0;    
                 bzero(buf, 2000);
                 bzero(matrixbuf, 2000);
                 break;
             case '-':
+                recv_matrix = 0;
                 recv_block = 1;
+                recv_turn = 0;
+                recv_check = 0; 
                 bzero(buf, 2000);
                 break;
             case '=':
@@ -635,7 +639,10 @@ void handleConnection(int connection_socket_descriptor)
                 bzero(blockbuf, 6);
                 break;
             case '#':
+                recv_matrix = 0;
+                recv_block = 0;
                 recv_turn = 1;
+                recv_check = 0; 
                 bzero(buf, 2000);
                 break;
             case '$':
@@ -643,7 +650,10 @@ void handleConnection(int connection_socket_descriptor)
                 bzero(buf, 2000);
                 break;
             case '@':
-                recv_check = 1;
+                recv_matrix = 0;
+                recv_block = 0;
+                recv_turn = 0;
+                recv_check = 1; 
                 strcpy(check_error, "");
                 bzero(buf, 2000);
                 break;
@@ -680,7 +690,6 @@ void handleConnection(int connection_socket_descriptor)
                     strncat(check_error, &buf[0], 1);
                 }
                 {
-                    //printf("%s", buf);
                 }
                 break;
             }
